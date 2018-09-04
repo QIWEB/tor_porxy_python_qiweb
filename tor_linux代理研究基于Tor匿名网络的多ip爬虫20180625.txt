@@ -1,0 +1,383 @@
+基于Tor匿名网络的多ip爬虫
+发表于2016-12-05
+基于tor匿名网络的多ip爬虫.更换ip的方式有多种,其中tor这类型则适合ip更换次数不大,网页数据量也不大,但是又厌恶代理那天天失效的麻烦,则最简单快捷的便是使用tor在本机搭建一个出口端口,让需要更换ip的爬虫程序制定proxies指向的端口.简单而且快捷,可使用的ip池子总数1000左右,实际中有500左右可以使用,匿名性当然不用质疑了.
+
+
+一.测试环境:
+linux ubuntu 16.04
+python 2.7
+主要包:requests   –    requesocks
+需要linux主机本身可以访问外网.自配vpn或者是香港主机也可以是window的电脑装linux的虚拟机,然后window使用vpn或者加速器等进行翻墙.
+二.部署方式:
+.. 2.1 环境准备
+….. 2.1.1 Linux
+….. 2.1.2 Python
+….. 2.1.3 Tor
+
+══════════
+
+2.1 环境准备
+──────
+
+Linux 操作系统。Windows 部署没有验证。
+2.1.1 Linux
+╌╌╌╌╌╌╌╌╌╌╌
+
+Linux 各种发行版本均可。以 Ubuntu 为例
+
+2.1.2 Python
+
+┌────
+│ sudo apt-get install python-pip
+└────
+┌────
+│ sudo pip install requests
+│ sudo pip install requesocks
+└────
+
+╌╌╌╌╌╌╌╌╌
+2.1.3 Tor
+┌────
+│ sudo apt-get install tor
+│ sudo /etc/init.d/tor restart
+└────
+启动后socks监听9050端口。
+┌────
+│ tor -–hash-password mypassword
+└────
+生成你的密码，之后编辑/etc/tor/torrc加上
+
+ControlPort 9051
+
+HashedControlPassword
+16:872860B76453A77D60CA2BB8C1A7042072093276A3D701AD684053EC4C
+
+让ControlPort监听9051端口，后边那个16:开头的hash就是上一步得到的。
+
+重要配置：
+vi /etc/tor/torrc
+#SOCKSPort 9050 # Default: Bind to localhost:9050 for local connections.
+SOCKSPort 10.0.24.239:9050
+
+
+
+┌────
+│ /etc/init.d/tor restart
+└────
+重启下tor。
+
+三. python示例代码
+方法一:
+
+使用  requesocks
+
+Python
+
+import os
+import requests
+import requesocks
+import time
+
+url = 'http://api.ipify.org?format=json'
+
+
+def getip_requests(url):
+    print "(+) Sending request with plain requests..."
+    r = requests.get(url)
+    print "(+) IP is: " + r.text.replace("\n", "")                       
+
+def getip_requesocks(url):
+    print "(+) Sending request with requesocks..."
+    session = requesocks.session()
+    session.proxies = {'http': 'socks5://127.0.0.1:9050',
+    'https': 'socks5://127.0.0.1:9050'}
+    r = session.get(url)
+    print "(+) IP is: " + r.text.replace("\n", "")
+
+
+def main():
+    print "Running tests..."
+    getip_requests(url)
+    getip_requesocks(url)
+    os.system("""(echo authenticate '"mypassword"'; echo signal newnym; echo \
+    quit) | nc localhost 9051""")
+    time.sleep(2)
+    getip_requesocks(url)
+
+
+if __name__ == "__main__":
+    main()
+
+import os
+import requests
+import requesocks
+import time
+ 
+url = 'http://api.ipify.org?format=json'
+ 
+ 
+def getip_requests(url):
+    print "(+) Sending request with plain requests..."
+    r = requests.get(url)
+    print "(+) IP is: " + r.text.replace("\n", "")                       
+ 
+def getip_requesocks(url):
+    print "(+) Sending request with requesocks..."
+    session = requesocks.session()
+    session.proxies = {'http': 'socks5://127.0.0.1:9050',
+    'https': 'socks5://127.0.0.1:9050'}
+    r = session.get(url)
+    print "(+) IP is: " + r.text.replace("\n", "")
+ 
+ 
+def main():
+    print "Running tests..."
+    getip_requests(url)
+    getip_requesocks(url)
+    os.system("""(echo authenticate '"mypassword"'; echo signal newnym; echo \
+    quit) | nc localhost 9051""")
+    time.sleep(2)
+    getip_requesocks(url)
+ 
+ 
+if __name__ == "__main__":
+    main()
+结果如图:
+2016-12-06-11-45-49%e5%b1%8f%e5%b9%95%e6%88%aa%e5%9b%be
+
+方法二
+
+pip install PySocks
+
+此可以使用requests的方式发送请求
+
+Python
+
+import socket
+import socks
+import requests
+
+socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", 9050)
+socket.socket = socks.socksocket
+print(requests.get('http://api.ipify.org?format=json').text)
+
+import socket
+import socks
+import requests
+ 
+socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", 9050)
+socket.socket = socks.socksocket
+print(requests.get('http://api.ipify.org?format=json').text)
+结果是类似的.
+
+ 
+
+要在程序内实现tor更换出口ip则调用下条指令即可
+
+Python
+
+    os.system("""(echo authenticate '"mypassword"'; echo signal newnym; echo \
+    quit) | nc localhost 9051""")
+1
+2
+    os.system("""(echo authenticate '"mypassword"'; echo signal newnym; echo \
+    quit) | nc localhost 9051""")
+ 
+
+四.总结
+ 
+
+最终,在已知的7种爬虫更换ip的方式中,tor算是部署成本最小的,只要你本机能够翻墙即可拥有500个ip供使用,并且能够保证相当高的匿名性.但是问题也是存在的,如果目标网站网页内容多,或者在抓取的时候使用phantomjs等方式就也一样是网速要求比较高这个时候就需要另外的方式了,比如adsl….ADSL爬虫届的换ip大招
+
+
+
+如何在linux环境下搭建Tor代理服务器
+2017年05月03日 15:33:42
+阅读数：7469
+如何在linux环境下搭建Tor代理服务器
+一、简介
+首先， Tor官方提供已不再提供单独的Tor内核下载，只提供集成了Tor内核的Tor-Browser下载。Tor Browser 内置了Tor，firefox，配置工具等，使用方便，但是安装和启动需要依赖GUI图形界面，在Windows或者Mac系统上推荐安装Tor-Browser，会简便很多。如果Linux上没有安装图形界面系统，如代理服务器VPS等，是无法安装Tor-Browser的，这个情况下可以通过安装Tor内核软件的方式实现TOR代理功能。
+
+Tor Browser的安装和使用已经在另一个文档Tor工具使用手册中详细介绍，这里主要介绍在没有图形界面的Linux服务器上安装Tor内核实现Tor代理功能。
+
+二、安装
+以下的安装在是centos6.5_64x系统上进行的。 
+centos系统默认yum源是找不到tor安装包的，若yum install tor提示未找到安装包，需要添加epel yum外部源。EPEL (Extra Packages for Enterprise Linux) 是Fedora小组维护的一个软件仓库项目，为RHEL/CentOS提供他们默认不提供的软件包。这个源兼容RHEL及像CentOS和Scientific Linux这样的衍生版本。
+
+安装步骤如下：
+
+yum install tor 若是提示未找到tor安装包，查看 /etc/yum.repos.d/下是否有epel.repo文件，若没有，说明系统未添加epel yum外部源，需要手动添加，若已经添加epel外部源，可直接安装tor，则跳过2-6步骤。
+根据你的操作系统，从网站获取对应的epel 的安装包，centos6.5_64位系统获取的安装包如下 （查看系统版本指令lsb_release -a && uname -a）wget http://download.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm
+sudo rpm -ivh epel-release-6-5.noarch.rpm
+安装成功后可看到 /etc/yum.repos.d/目录下多了epel.repo 与epel-testing.repo文件
+yum clean all
+yum makecache
+yum install tor
+三、启动
+安装Tor成功之后，就可以启动Tor了。需要注意的是Tor必须以非root用户启动，否则会启动失败。可以新建一个用户或使用已经存在的其他用户。新建用户操作可参考如下
+
+useradd admin -d /home/admin
+passwd admin
+chown -R admin:admin /home/admin
+chown -R admin:admin /var/run/tor
+切换到用户admin运行Tor，成功运行Tor会显示以下打印 
+Feb 16 06:33:41.862 [notice] Tor v0.2.8.12 running on Linux with Libevent 1.4.13-stable, OpenSSL 1.0.1e-fips and Zlib 1.2.3. 
+Feb 16 06:33:41.862 [notice] Tor can’t help you if you use it wrong! Learn how to be safe at https://www.torproject.org/download/download#warning 
+Feb 16 06:33:41.862 [notice] Read configuration file “/etc/tor/torrc”. 
+Feb 16 06:33:41.866 [notice] Opening Socks listener on 127.0.0.1:9050 
+Feb 16 06:33:41.866 [notice] Opening Control listener on /var/run/tor/control 
+Feb 16 06:33:41.000 [notice] Parsing GEOIP IPv4 file /usr/share/tor/geoip. 
+Feb 16 06:33:41.000 [notice] Parsing GEOIP IPv6 file /usr/share/tor/geoip6. 
+Feb 16 06:33:42.000 [notice] We were built to run on a 64-bit CPU, with OpenSSL 1.0.1 or later, but with a version of OpenSSL that apparently lacks accelerated support for the NIST P-224 and P-256 groups. Building openssl with such support (using the enable-ec_nistp_64_gcc_128 option when configuring it) would make ECDH much faster. 
+Feb 16 06:33:42.000 [notice] Bootstrapped 0%: Starting 
+Feb 16 06:33:43.000 [notice] Bootstrapped 5%: Connecting to directory server 
+Feb 16 06:33:43.000 [notice] Bootstrapped 10%: Finishing handshake with directory server 
+Feb 16 06:33:44.000 [notice] Bootstrapped 15%: Establishing an encrypted directory connection 
+Feb 16 06:33:44.000 [notice] Bootstrapped 20%: Asking for networkstatus consensus 
+Feb 16 06:33:44.000 [notice] Bootstrapped 25%: Loading networkstatus consensus 
+Feb 16 06:33:46.000 [notice] I learned some more directory information, but not enough to build a circuit: We have no usable consensus. 
+Feb 16 06:33:48.000 [notice] Bootstrapped 40%: Loading authority key certs 
+Feb 16 06:33:48.000 [notice] Bootstrapped 45%: Asking for relay descriptors 
+Feb 16 06:33:48.000 [notice] I learned some more directory information, but not enough to build a circuit: We need more microdescriptors: we have 0/7219, and can only build 0% of likely paths. (We have 0% of guards bw, 0% of midpoint bw, and 0% of exit bw = 0% of path bw.) 
+Feb 16 06:33:50.000 [notice] Bootstrapped 50%: Loading relay descriptors 
+Feb 16 06:33:51.000 [notice] Bootstrapped 55%: Loading relay descriptors 
+Feb 16 06:33:53.000 [notice] Bootstrapped 60%: Loading relay descriptors 
+Feb 16 06:34:02.000 [notice] Bootstrapped 69%: Loading relay descriptors 
+Feb 16 06:34:47.000 [notice] Bootstrapped 74%: Loading relay descriptors 
+Feb 16 06:34:47.000 [notice] Bootstrapped 80%: Connecting to the Tor network 
+Feb 16 06:34:48.000 [notice] Bootstrapped 90%: Establishing a Tor circuit 
+Feb 16 06:34:49.000 [notice] Tor has successfully opened a circuit. Looks like client functionality is working. 
+Feb 16 06:34:49.000 [notice] Bootstrapped 100%: Done
+四、测试
+启动Tor成功之后，可以输入netstat -lnt查看本机的网络状态，
+tcp     0     0     127.0.0.1:9050      0.0.0.0:*      LISTEN  
+1
+可以看到TOR开启了本地9050端口作为SOCKS5代理，其他应用程序可以通过使用torsocks全局代理工具或者配置应用程序的代理为127.0.0.1:9050走Tor网络。 在服务器上验证能否正常连接到Tor 网络 ，可以使用以下语句测试进行对比测试
+curl ipinfo.io            #可以获取到正确的本机IP信息  
+torsocks curl ipinfo.io   #公网上获取到的的IP为非本机IP，且每隔几分钟变化一次 
+1
+2
+五、代理配置
+现在要使该服务器成为一个TOR代理，使得其他主机可以使用该服务器的TOR代理，需要进行如下配置
+vim /etc/tor/torrc 修改SOCK5代理端口，添加以下语句
+SOCKSPort 9050 # Default: Bind to localhost:9050 for local connections.  
+SOCKSPort 0.0.0.0:9150 # Bind to this address:port too.  
+1
+2
+重新运行TOR，查看网络状态，新打开监听端口9150
+tcp     0     0    127.0.0.1:9050     0.0.0.0:*       LISTEN             
+tcp     0     0    0.0.0.0:9150          0.0.0.0:*       LISTEN 
+1
+2
+因为TOR提供的SOCK5代理没有用户密码验证。所以我们需要配置防火墙，修改iptables来指定允许的IP连接该端口。或者直接修改Tor配置文件，只允许指定的IP访问TOR代理接口，在torrc文件末尾添加以下语句。
+SOCKSPolicy accept   45.32.24.178    
+SOCKSPolicy reject *  
+#SOCKSPolicy accept 192.168.0.0/16  
+1
+2
+3
+使用其他主机测试该代理，在一台VPS上配置firefox浏览器socks5代理为该服务器的9150端口，然后通过浏览器百度自己的ip，或者访问https://check.torproject.org/?lang=zh_CN，可以发现该浏览器的流量走的是tor网络。如果想要使整个主机流量走TOR网络，可以配合proxyfier等全局代理工具使用。
+六、其他TOR相关配置
+配置Tor网络出口节点 
+比如想实现指定Tor网络出口节点，或者限制出口节点不走某些区域的功能。以指定出口节点为日本为例，在torrc配置文档末尾添加以下语句(StrictNodes 表示强制执行） 
+ExitNodes {jp} 
+StrictNodes 1 
+如果想要排除某些国家/地区的节点，如中国，香港可以添加 
+ExcludeNodes {cn},{mo},{hk} 
+StrictNodes 1 
+这样，Tor客户端会主动规避来自香港的中继节点，但如果Tor在排除之后的中继节点中建立不起来虚拟线路的时候，还是会尝试使用那些排除在外的中继节点。所以，如果要再狠一点，哪怕不能连接也完全不考虑这些排除的节点，则可以再在配置文件中加入StrictNodes 1进行强制执行。
+
+配置前置代理 
+为Tor配置前置代理，比如在国内是无法直接连接TOR网络的，需要使用前置代理翻墙，然后再使用TOR网络进行双重代理。前置代理可以是HTTP，SOCKS4，SOCKS5等代理，支持用户密码验证，如添加SOCK5代理，添加以下语句在torrc文件末尾。
+
+Socks5Proxy 127.0.0.1:1080  
+#Socks5ProxyUsername username  
+#Socks5ProxyPassword password 
+1
+2
+3
+FAQ：
+Q: 若安装Tor碰到错误？ 
+如果错误信息如下： 
+GPG key retrieval failed: [Errno 14] Could not open/read file:///etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-6 
+这个错误是因为手动添加epel源时，未手动添加GPG密钥， 
+解决方案： 
+第一种是把这个key从这个源站copy过来，放到/etc/pki/rpm-gpg目录下 
+第二种是修改repo文件 
+vim /etc/yum.repos.d/epel.repo 
+把gpgcheck=1改为gpgcheck=0
+
+Q: 安装和配置正常，但是启动Tor，发现无法连接到Tor网络？ 
+国内需翻墙才能顺利连接接到TOR网络。
+
+
+Tor 网络是一个用来保护你的互联网以及隐私的匿名网络。Tor 网络是一组志愿者运营的服务器。Tor 通过在由志愿者运营的分布式中继系统之间跳转来保护互联网通信。这避免了人们窥探我们的网络，他们无法了解我们访问的网站或者用户身在何处，并且也可以让我们访问被屏蔽的网站。
+
+在本教程中，我们将学习在各种 Linux 操作系统上安装 Tor 网络，以及如何使用它来配置我们的程序来保护通信。
+
+推荐阅读：如何在 Linux 上安装 Tor 浏览器（Ubuntu、Mint、RHEL、Fedora、CentOS）
+
+CentOS/RHEL/Fedora
+Tor 包是 EPEL 仓库的一部分，所以如果我们安装了 EPEL 仓库，我们可以直接使用 yum 来安装 Tor。如果你需要在您的系统上安装 EPEL 仓库，请使用下列适当的命令（基于操作系统和体系结构）：
+
+RHEL/CentOS 7：
+
+$ sudo rpm -Uvh https://dl.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-11.noarch.rpm
+RHEL/CentOS 6 (64 位)：
+
+$ sudo rpm -Uvh http://download.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm
+RHEL/CentOS 6 (32 位)：
+
+$ sudo rpm -Uvh http://dl.fedoraproject.org/pub/epel/6/i386/epel-release-6-8.noarch.rpm
+安装完成后，我们可以用下面的命令安装 Tor 浏览器：
+
+$ sudo yum install tor
+Ubuntu
+为了在 Ubuntu 机器上安装 Tor 网络，我们需要添加官方 Tor 仓库。我们需要将仓库信息添加到 /etc/apt/sources.list 中。
+
+$ sudo nano /etc/apt/sources.list
+现在根据你的操作系统添加下面的仓库信息：
+
+Ubuntu 16.04：
+
+deb http://deb.torproject.org/torproject.org xenial main
+deb-src http://deb.torproject.org/torproject.org xenial main
+Ubuntu 14.04
+
+deb http://deb.torproject.org/torproject.org trusty main
+deb-src http://deb.torproject.org/torproject.org trusty main
+接下来打开终端并执行以下两个命令添加用于签名软件包的 gpg 密钥：
+
+$ gpg -keyserver keys.gnupg.net -recv A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89
+$ gpg -export A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89 | sudo apt-key add -
+现在运行更新并安装 Tor 网络：
+
+$ sudo apt-get update
+$ sudo apt-get install tor deb.torproject.org-keyring
+Debian
+我们可以无需添加任何仓库在 Debian 上安装 Tor 网络。只要打开终端并以 root 身份执行以下命令：
+
+$ apt install tor
+Tor 配置
+如果你最终目的只是为了保护互联网浏览，而没有其他要求，直接使用 Tor 更好，但是如果你需要保护即时通信、IRC、Jabber 等程序，则需要配置这些应用程序进行安全通信。但在做之前，让我们先看看Tor 网站上提到的警告。
+
+不要大流量使用 Tor
+不要在 Tor 中使用任何浏览器插件
+只使用 HTTPS 版本的网站
+不要在线打开通过 Tor 下载的任何文档。
+尽可能使用 Tor 桥
+现在配置程序来使用 Tor，例如 jabber。首先选择 “SOCKS代理” 而不是使用 HTTP 代理，并使用端口号 9050，或者也可以使用端口 9150（Tor 浏览器使用）。
+
+install tor network
+
+install tor network
+
+你也可以配置 Firefox 浏览器使用 Tor 网络。打开 Firefox 浏览器，在“常规”选项卡的“首选项”中进入“网络代理”设置，并按以下步骤输入代理：
+
+install tor network
+
+install tor network
+
+现在你可以在 Firefox 中使用 Tor 网络完全匿名访问了。
+
+这就是我们如何安装 Tor 网络并使用 Tor 浏览互联网的教程。请在下面的评论栏中提出你的问题和建议。
